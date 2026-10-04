@@ -44,11 +44,21 @@ function crearEntradaCompleta(req, res) {
         productos
     } = req.body;
 
+
+    // =========================
+    // VALIDAR PROVEEDOR
+    // =========================
+
     if (!proveedor_id) {
         return res.status(400).json({
             mensaje: "El proveedor es obligatorio"
         });
     }
+
+
+    // =========================
+    // VALIDAR PRODUCTOS
+    // =========================
 
     if (!productos || productos.length === 0) {
         return res.status(400).json({
@@ -56,7 +66,10 @@ function crearEntradaCompleta(req, res) {
         });
     }
 
-    // Verificar que el proveedor exista
+
+    // =========================
+    // VERIFICAR PROVEEDOR
+    // =========================
 
     const sqlProveedor = `
         SELECT id
@@ -70,10 +83,13 @@ function crearEntradaCompleta(req, res) {
         (error, resultados) => {
 
             if (error) {
+                console.log(error);
+
                 return res.status(500).json({
                     mensaje: "Error al verificar el proveedor"
                 });
             }
+
 
             if (resultados.length === 0) {
                 return res.status(404).json({
@@ -81,7 +97,10 @@ function crearEntradaCompleta(req, res) {
                 });
             }
 
-            // Si el proveedor existe, iniciamos la transacción
+
+            // =========================
+            // INICIAR TRANSACCIÓN
+            // =========================
 
             conexion.beginTransaction((error) => {
 
@@ -89,11 +108,14 @@ function crearEntradaCompleta(req, res) {
                     console.log(error);
 
                     return res.status(500).json({
-                        mensaje: 'Error al iniciar la transacción'
+                        mensaje: "Error al iniciar la transacción"
                     });
                 }
 
-                // 1. Crear la entrada
+
+                // =========================
+                // CREAR ENTRADA
+                // =========================
 
                 const sqlEntrada = `
                     INSERT INTO entradas
@@ -107,86 +129,132 @@ function crearEntradaCompleta(req, res) {
                     (error, resultadoEntrada) => {
 
                         if (error) {
+
                             return conexion.rollback(() => {
+
                                 console.log(error);
 
                                 res.status(500).json({
-                                    mensaje: 'Error al crear la entrada'
+                                    mensaje: "Error al crear la entrada"
                                 });
+
                             });
                         }
 
+
+                        // ID de la entrada recién creada
+
                         const entradaId = resultadoEntrada.insertId;
 
-                        // 2. Procesar los productos
+
+                        // =========================
+                        // PROCESAR PRODUCTOS
+                        // =========================
 
                         procesarProductos(
                             productos,
                             entradaId,
                             0,
-                            () => {
 
-                                // 3. Si todo salió bien
+                            // =========================
+                            // TODO SALIÓ BIEN
+                            // =========================
+
+                            () => {
 
                                 conexion.commit((error) => {
 
                                     if (error) {
+
                                         return conexion.rollback(() => {
+
                                             console.log(error);
 
                                             res.status(500).json({
-                                                mensaje: 'Error al confirmar la entrada'
+                                                mensaje: "Error al confirmar la entrada"
                                             });
+
                                         });
                                     }
 
+
+                                    // =========================
+                                    // RESPUESTA FINAL
+                                    // =========================
+
                                     res.status(201).json({
-                                        mensaje: 'Entrada completa creada correctamente',
+                                        mensaje: "Entrada completa creada correctamente",
                                         entrada_id: entradaId
                                     });
 
                                 });
 
                             },
+
+
+                            // =========================
+                            // OCURRIÓ UN ERROR
+                            // =========================
+
                             (error) => {
 
                                 conexion.rollback(() => {
 
                                     console.log(error);
 
-                                    if (error.message.includes('no existe')) {
-                                        return res.status(404).json({
-                                            mensaje: error.message
-                                        });
-                                    }
+
+                                    // Errores producidos
+                                    // por datos enviados
+                                    // por el usuario
 
                                     if (
-                                        error.message.includes('cantidad') ||
-                                        error.message.includes('costo')
+                                        error.message.includes("cantidad") ||
+                                        error.message.includes("costo") ||
+                                        error.message.includes("lote") ||
+                                        error.message.includes("fecha")
                                     ) {
+
                                         return res.status(400).json({
                                             mensaje: error.message
                                         });
+
                                     }
 
+
+                                    // Producto inexistente
+
+                                    if (error.message.includes("no existe")) {
+
+                                        return res.status(404).json({
+                                            mensaje: error.message
+                                        });
+
+                                    }
+
+
+                                    // Error desconocido
+
                                     res.status(500).json({
-                                        mensaje: 'Error al procesar la entrada'
+                                        mensaje: "Error al procesar la entrada"
                                     });
 
                                 });
 
                             }
+
                         );
 
                     }
+
                 );
 
             });
 
         }
-    );
-}
 
+    );
+
+}
 
 function procesarProductos(
     productos,
