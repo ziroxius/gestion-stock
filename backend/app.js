@@ -5,6 +5,9 @@ const proveedoresRoutes = require('./src/routes/proveedores');
 const entradasRoutes = require('./src/routes/entradas');
 const detalleEntradaRoutes = require('./src/routes/detalleEntrada');
 const lotesRoutes = require('./src/routes/lotes');
+const stockRoutes = require('./src/routes/stock');
+const alertasRoutes = require('./src/routes/alertas');
+const dashboardRoutes = require('./src/routes/dashboard');
 
 const app = express();
 
@@ -23,3 +26,6 @@ app.use('/api', proveedoresRoutes);
 app.use('/api', entradasRoutes);
 app.use('/api', detalleEntradaRoutes);
 app.use('/api', lotesRoutes);
+app.use('/api', stockRoutes);
+app.use('/api', alertasRoutes);
+app.use('/api', dashboardRoutes);

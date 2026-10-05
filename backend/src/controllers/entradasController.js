@@ -256,6 +256,48 @@ function crearEntradaCompleta(req, res) {
 
 }
 
+function obtenerEntradas(req, res) {
+
+    const sql = `
+    SELECT
+        entradas.id,
+        entradas.fecha,
+        entradas.observaciones,
+        proveedores.nombre AS proveedor,
+        COUNT(detalle_entrada.id) AS cantidad_productos,
+        COALESCE(SUM(detalle_entrada.cantidad), 0) AS cantidad_unidades
+    FROM entradas
+
+    INNER JOIN proveedores
+        ON entradas.proveedor_id = proveedores.id
+
+    LEFT JOIN detalle_entrada
+        ON entradas.id = detalle_entrada.entrada_id
+
+    GROUP BY
+        entradas.id,
+        entradas.fecha,
+        entradas.observaciones,
+        proveedores.nombre
+
+    ORDER BY entradas.fecha DESC
+    
+    `;
+
+    conexion.query(sql, (error, resultados) => {
+
+        if (error) {
+            console.log(error);
+
+            return res.status(500).json({
+                mensaje: "Error al obtener las entradas"
+            });
+        }
+
+        res.status(200).json(resultados);
+    });
+}
+
 function procesarProductos(
     productos,
     entradaId,
@@ -483,8 +525,171 @@ function procesarProductos(
     );
 }
 
+function obtenerEntradaPorId(req, res) {
+
+    const id = req.params.id;
+
+    const sql = `
+    SELECT
+        entradas.id,
+        entradas.fecha,
+        entradas.observaciones,
+        proveedores.nombre AS proveedor,
+        productos.nombre AS producto,
+        detalle_entrada.cantidad,
+        detalle_entrada.costo_unitario,
+        lotes.numero_lote,
+        lotes.fecha_vencimiento
+    FROM entradas
+
+    INNER JOIN proveedores
+        ON entradas.proveedor_id = proveedores.id
+
+    INNER JOIN detalle_entrada
+        ON entradas.id = detalle_entrada.entrada_id
+
+    INNER JOIN productos
+        ON detalle_entrada.producto_id = productos.id
+
+    INNER JOIN lotes
+        ON detalle_entrada.id = lotes.detalle_entrada_id
+
+    WHERE entradas.id = ?
+`;
+
+conexion.query(
+    sql,
+    [id],
+    (error, resultados) => {
+
+        if (error) {
+            console.log(error);
+
+            return res.status(500).json({
+                mensaje: "Error al obtener la entrada"
+            });
+        }
+
+        if (resultados.length === 0) {
+    return res.status(404).json({
+        mensaje: "La entrada no existe"
+    });
+}
+
+const entrada = {
+    id: resultados[0].id,
+    fecha: resultados[0].fecha,
+    observaciones: resultados[0].observaciones,
+    proveedor: resultados[0].proveedor,
+    productos: []
+};
+
+resultados.forEach((resultado) => {
+
+    entrada.productos.push({
+        nombre: resultado.producto,
+        cantidad: resultado.cantidad,
+        costo_unitario: resultado.costo_unitario,
+        numero_lote: resultado.numero_lote,
+        fecha_vencimiento: resultado.fecha_vencimiento
+    });
+
+});
+
+res.status(200).json(entrada);
+    }
+);
+
+}
+
+function obtenerHistorialEntradas(req, res) {
+
+    const {
+        desde,
+        hasta,
+        proveedor,
+        producto
+    } = req.query;
+
+    let sql = `
+        SELECT
+            entradas.id AS entrada_id,
+            entradas.fecha,
+            proveedores.nombre AS proveedor,
+            productos.nombre AS producto,
+            detalle_entrada.cantidad,
+            detalle_entrada.costo_unitario,
+            lotes.numero_lote,
+            lotes.fecha_vencimiento
+        FROM entradas
+
+        INNER JOIN proveedores
+            ON entradas.proveedor_id = proveedores.id
+
+        INNER JOIN detalle_entrada
+            ON entradas.id = detalle_entrada.entrada_id
+
+        INNER JOIN productos
+            ON detalle_entrada.producto_id = productos.id
+
+        INNER JOIN lotes
+            ON detalle_entrada.id = lotes.detalle_entrada_id
+    `;
+
+    const valores = [];
+    const condiciones = [];
+
+    if (desde) {
+        condiciones.push('DATE(entradas.fecha) >= ?');
+        valores.push(desde);
+    }
+
+    if (hasta) {
+        condiciones.push('DATE(entradas.fecha) <= ?');
+        valores.push(hasta);
+    }
+
+    if (proveedor) {
+        condiciones.push('entradas.proveedor_id = ?');
+        valores.push(proveedor);
+    }
+
+    if (producto) {
+        condiciones.push('detalle_entrada.producto_id = ?');
+        valores.push(producto);
+    }
+
+    if (condiciones.length > 0) {
+        sql += ` WHERE ${condiciones.join(' AND ')}`;
+    }
+
+    sql += `
+        ORDER BY entradas.fecha DESC
+    `;
+
+    conexion.query(
+        sql,
+        valores,
+        (error, resultados) => {
+
+            if (error) {
+                console.log(error);
+
+                return res.status(500).json({
+                    mensaje: "Error al obtener el historial de entradas"
+                });
+            }
+
+            res.status(200).json(resultados);
+        }
+    );
+}
+
 
 module.exports = {
     crearEntrada,
-    crearEntradaCompleta
+    crearEntradaCompleta,
+    obtenerEntradas,
+    obtenerEntradaPorId,
+    obtenerHistorialEntradas
 };
