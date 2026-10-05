@@ -109,4 +109,13 @@ UPDATE productos
 SET stock = stock + 10
 WHERE id = 3;
 
+
+SELECT * FROM entradas;
+SELECT * FROM detalle_entrada;
 SELECT * FROM lotes;
+SELECT
+    id,
+    nombre,
+    stock,
+    costo_actual
+FROM productos;
